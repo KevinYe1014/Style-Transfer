@@ -1,0 +1,102 @@
+
+
+optimize 25 总train数据个数：82783张，这里去掉最后的三张，这样就是batch_size的倍数了。
+
+optimize 29 (1, ) + (519, 928, 3) = (1, 519, 928, 3)
+
+style feature
+ 1.  (1, 514, 928, 64) => (476992, 64) A
+      gama = A.T * A / (476992 * 64) = (64, 64)
+ 
+ 2.  输出是 (128, 128)
+ 3 -> 5： 256   512  512
+ 
+optimize 45 xcontent (4, 256, 256, 3)  # 输入
+ 
+content feature (4, 32, 32, 512)
+ 
+ 
+ 
+ 
+transform 70 net.get_shape() (4, 256, 256, 3)
+ 
+transform 62 mu, sigma_sq (4, 1, 1, 32) 
+ scale, shift (32, )
+ 66 normalized (4, 256, 256, 3)
+ 
+transform 60  计算batch（tensor形式的）的均值和标准差，
+最好的方法是mu, sigma_sq = tf.nn.moments(net, [1,2], keep_dims=True)
+ 
+_residual_block 
+ net (4, 64, 64, 128)
+ num_filter: 128
+ filter_size: 3
+ stride: 1
+ tmp: (4, 64, 64, 128)
+说明：残差block是进行像素点相加，程序上直接+，前提：两个分支的w h c包括b 都是相等的。
+      输出结果还是一样的。
+	  
+_conv_transpose_layer：
+ net: (4, 64, 64, 128)
+ num_filter: 64
+ filter_size: 3
+ stride: 2
+ 74 初始化的时候，输出和输入是相反的，相比较于卷积神经网络。
+ 输出网络：(batch_size, intput(rows) * stride, input(cols) * stride, num_filter)
+? 45 
+
+transform 输出倒数第二层：(4, 256, 256, 3)
+
+上面经过transform的数据，再次经过vgg-net 提取特征 提取特定层输出结构为 
+(4, 32, 32, 512)
+
+然后计算content的损失：
+content_loss = conten_weight * (2 * tf.nn.l2_loss(
+            net[CONTENT_LAYER] - content_features[CONTENT_LAYER]) / content_size
+
+			
+optimize 61 计算累积和最好的办法是reduce函数
+ from operator import mul
+ return functools.reduce(mul, (d.value for d in tensor.get_shape()[1:]), 1)
+
+optimize 64  计算平方和且开根号最好的函数是tf.nn.l2_loss
+
+
+
+针对style有：VGG的输出
+ 1. shape=(4, 256, 256, 64)
+	size = 256 * 256 * 64 = 65536
+	feats = shape -> (4, 65536, 64)
+	feats.T  -> (4, 64, 65536)
+	gama  (4, 64, 64)
+	style_losses[1]  2 * l2_loss [(4, 64, 64) - (64, 64)] / (4, 64, 64).size
+	
+ 2. (4, 128, 128, 128)
+ 3. (4, 64, 64, 256)
+ 4. (4, 32, 32, 512)
+ 5. (4, 16, 16, 512)
+style_losses 相加 乘以权重 除以batch_size
+
+loss = content_loss + style_losses
+
+
+
+返回： 函数的返回也可以用yield，他和return的区别是，yield返回不会终止，return返回会终止的。
+
+ 
+
+ 
+============================================================================
+evaluate.py
+
+130 data_in (474, 712, 3)
+
+131 batch_size  min(1, 4) = 1
+
+batch_shape (batch_size, 474, 712, 3) 1
+
+经过transform net 输出和输入是一样的
+
+
+
+
